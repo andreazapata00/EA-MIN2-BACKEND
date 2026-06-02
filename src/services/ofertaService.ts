@@ -1,6 +1,7 @@
 import { IOferta, OfertaModel } from '../models/ofertaModel.js';
 import { IUsuario, UsuarioModel } from '../models/usuarioModel.js';
 import { PaginatedResult, PaginationParams } from '../models/pagination.js';
+import { registrarEvento } from './eventoService.js';
 
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -29,11 +30,28 @@ const buildOfertaFilter = async (options?: { excludeOwnerId?: string; search?: s
 };
 
 export const crearOferta = async (data: Partial<IOferta>): Promise<IOferta> => {
-  return await new OfertaModel(data).save();
+  const nuevaOferta = await new OfertaModel(data).save();
+
+  await registrarEvento({
+    type: 'NUEVO_VENDEDOR',
+    ofertaId: nuevaOferta._id,
+    userId: nuevaOferta.owner
+  });
+
+  return nuevaOferta;
 };
 
 export const obtenerOfertaPorId = async (id: string): Promise<IOferta | null> => {
-  return (await OfertaModel.findById(id).populate('owner', 'fullName email').lean()) as IOferta | null;
+  const oferta = (await OfertaModel.findById(id).populate('owner', 'fullName email').lean()) as IOferta | null;
+
+  if (oferta) {
+    await registrarEvento({
+      type: 'VISITA_OFERTA',
+      ofertaId: oferta._id
+    });
+  }
+
+  return oferta;
 };
 
 export const actualizarOferta = async (id: string, data: Partial<IOferta>): Promise<IOferta | null> => {

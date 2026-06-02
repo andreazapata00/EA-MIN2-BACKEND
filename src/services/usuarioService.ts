@@ -1,7 +1,17 @@
 import { IUsuario, UsuarioModel } from '../models/usuarioModel.js';
+import { registrarEvento } from './eventoService.js';
 
 export const crearUsuario = async (data: Partial<IUsuario>): Promise<IUsuario> => {
-  return await new UsuarioModel(data).save();
+  const nuevoUsuario = await new UsuarioModel(data).save();
+
+  if (nuevoUsuario.roles && nuevoUsuario.roles.includes('INTERESTED')) {
+    await registrarEvento({
+      type: 'NUEVO_COMPRADOR',
+      userId: nuevoUsuario._id
+    });
+  }
+
+  return nuevoUsuario;
 };
 
 export const obtenerUsuarioPorId = async (id: string): Promise<IUsuario | null> => {

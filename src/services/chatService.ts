@@ -3,6 +3,7 @@ import { ChatModel, IChat, ChatStatus } from '../models/chatModel.js';
 import { MensajeModel, IMensaje } from '../models/mensajeModel.js';
 import { OfertaModel } from '../models/ofertaModel.js';
 import { SolicitudModel } from '../models/solicitudModel.js';
+import { registrarEvento } from './eventoService.js';
 
 export const verificarOfertaYObtenerPropietario = async (ofertaId: string): Promise<string | null> => {
   const oferta = await OfertaModel.findById(ofertaId).select('owner').lean();
@@ -51,13 +52,23 @@ export const crearOObtenerChat = async (
     update.$setOnInsert.status = 'PENDING_APPROVAL';
   }
 
-  return await ChatModel.findOneAndUpdate({ oferta: ofertaId, interested: interestedId }, update, {
+  const chat = await ChatModel.findOneAndUpdate({ oferta: ofertaId, interested: interestedId }, update, {
     upsert: true,
     new: true,
     runValidators: true
   })
     .populate('owner', 'fullName email')
     .populate('interested', 'fullName email');
+
+  if (chat && chat.createdAt?.getTime() === chat.updatedAt?.getTime()) {
+    await registrarEvento({
+      type: 'CONTACTO_INICIADO',
+      userId: new Types.ObjectId(interestedId),
+      ofertaId: new Types.ObjectId(ofertaId)
+    });
+  }
+
+  return chat;
 };
 
 export const obtenerChatsPorUsuario = async (userId: string): Promise<IChat[]> => {
@@ -103,11 +114,18 @@ export const actualizarEstadoChat = async (chatId: string, status: string): Prom
 };
 
 export const guardarMensaje = async (chatId: string, senderId: string, content: string): Promise<IMensaje> => {
-  return await MensajeModel.create({
+  const mensaje = await MensajeModel.create({
     chat: chatId,
     sender: senderId,
     content
   });
+
+  await registrarEvento({
+    type: 'MENSAJE_ENVIADO',
+    userId: new Types.ObjectId(senderId)
+  });
+
+  return mensaje;
 };
 
 export const actualizarChatConNuevoMensaje = async (

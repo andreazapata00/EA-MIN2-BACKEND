@@ -1,5 +1,6 @@
 import { ISolicitud, SolicitudModel } from '../models/solicitudModel.js';
 import { PaginatedResult, PaginationParams } from '../models/pagination.js';
+import { registrarEvento } from './eventoService.js';
 
 export const crearSolicitud = async (data: Partial<ISolicitud>): Promise<ISolicitud> => {
   const yaExiste = await SolicitudModel.findOne({
@@ -11,7 +12,15 @@ export const crearSolicitud = async (data: Partial<ISolicitud>): Promise<ISolici
     throw new Error('Solicitud ya existente para esta oferta');
   }
 
-  return await new SolicitudModel(data).save();
+  const nuevaSolicitud = await new SolicitudModel(data).save();
+
+  await registrarEvento({
+    type: 'LEAD_GENERADO',
+    userId: nuevaSolicitud.interestedUser,
+    ofertaId: nuevaSolicitud.opportunity
+  });
+
+  return nuevaSolicitud;
 };
 
 export const obtenerSolicitudPorId = async (id: string): Promise<ISolicitud | null> => {
