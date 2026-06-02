@@ -1,12 +1,12 @@
 version: '3.8'
 
 services:
-  # 1. La Base de Datos (Imagen oficial)
+  # 1. Base de Datos (MongoDB)
   mongodb:
     image: mongo:latest
-    container_name: univy_db
-    # Ya NO exponemos el puerto 27017 al host.
-    # MongoDB solo es accesible desde la red interna.
+    container_name: relevo_db
+    ports:
+      - '27017:27017'
     volumes:
       - mongo_data:/data/db
     networks:
@@ -15,27 +15,29 @@ services:
 
   # 2. Tu Backend Node.js
   backend:
-    # Sustituye "tu_usuario" por tu nombre real de Docker Hub: g5_univy
-    image: bictorp/backend-ea:v1.4
-    container_name: univy_backend
+    build: .
+    container_name: relevo_backend
     ports:
-      - '1337:1337' # Mapeamos el puerto 1337 que usas en server.ts
+      - '4000:4000' # Escucha en el puerto 4000 de tu .env
     depends_on:
       - mongodb
     env_file:
-      # Carga automáticamente las variables de tu .env
       - .env
+    environment:
+      # Sobrescribimos la IP local por el nombre del contenedor de Mongo
+      # Así no tienes que tocar tu archivo .env para nada
+      - MONGO_URI=mongodb://mongodb:27017/ea-exercise-mongoose
     networks:
-      - backend_internal # Para hablar con MongoDB
-      - frontend_net # Para que web/backoffice lleguen al backend
+      - backend_internal
+      - frontend_net
     restart: unless-stopped
 
-  # 3. La WebApp (React/Vite)
+  # 3. La WebApp Principal (React/Vite)
   web:
     image: bictorp/web-ea:v1
-    container_name: univy_web
+    container_name: relevo_web
     ports:
-      - '80:80' # Tu web se verá en http://localhost
+      - '80:80' # Accesible en http://localhost
     depends_on:
       - backend
     networks:
@@ -45,41 +47,42 @@ services:
   # 4. El Backoffice (Angular)
   backoffice:
     image: bictorp/backoffice-ea:v1.2
-    container_name: univy_backoffice
+    container_name: relevo_backoffice
     ports:
-      - '9000:80' # Tu backoffice se verá en http://localhost:9000
+      - '4200:80' # Accesible en http://localhost:4200 (Coincide con tu FRONTEND_URL)
     depends_on:
       - backend
     networks:
       - frontend_net
     restart: unless-stopped
 
-  # 5. Panel de Control (Grafana)
+  # 5. Panel de Control y Observatorio (Grafana)
   grafana:
     image: grafana/grafana:latest
-    container_name: univy_grafana
+    container_name: relevo_grafana
     ports:
-      - '3000:3000' # Tu panel se verá en http://localhost:3000
+      - '3000:3000' # Accesible en http://localhost:3000
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_INSTALL_PLUGINS=grafana-mongodb-datasource
+      - GF_INSTALL_PLUGINS=yesoreyeram-infinity-datasource
     volumes:
       - grafana_data:/var/lib/grafana
     networks:
-      - backend_internal # Importante: se une a la red privada para poder ver a MongoDB
+      - backend_internal
+      - frontend_net
     depends_on:
       - mongodb
     restart: unless-stopped
 
-# Declaramos el volumen para que Mongo no pierda datos si se apaga
+# Volúmenes para persistencia de datos
 volumes:
   mongo_data:
   grafana_data:
 
-# Declaramos las redes
+# Redes aisladas por seguridad
 networks:
   backend_internal:
     driver: bridge
-    internal: true # <-- Clave: esta red NO tiene salida a internet ni al host
+    internal: true # Bloquea el acceso exterior a la base de datos
   frontend_net:
     driver: bridge

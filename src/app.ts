@@ -12,6 +12,7 @@ import { globalErrorHandler } from './middlewares/errorMiddleware.js';
 import { httpLogger } from './middlewares/loggerMiddleware.js';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './swagger.js';
+import eventoRoutes from './routes/eventoRoutes.js';
 
 const app = express();
 
@@ -71,6 +72,7 @@ app.use('/api/solicitudes', solicitudRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/storage', storageRoutes);
+app.use('/api/eventos', eventoRoutes);
 
 /**
  * 📖 API DOCUMENTATION (SWAGGER)
